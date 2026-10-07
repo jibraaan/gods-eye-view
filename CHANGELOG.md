@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Keep the rest of a satellite group when one element set is missing a
+  line. The TLE parser stepped through a group in fixed blocks of three, so a
+  short set put every later set out of step and the group loaded with only the
+  satellites before it. Each set is now read from a line 1 followed by a line 2
+  for the same catalog number; an unnamed set is named by its catalog number.
+
 - Add Norway's road cameras from Statens vegvesen as a CCTV pack. The camera
   list is one keyless GeoJSON request to the agency's OGC API view of its
   DATEX 3.1 CCTV table, so no DATEX account is needed. Every working camera

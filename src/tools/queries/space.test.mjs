@@ -30,6 +30,33 @@ test('TLE text parses into named entries with catalog numbers', () => {
   assert.equal(tleCatalogNumber('1 xx'), null);
 });
 
+test('a TLE set missing a line drops only itself, not the sets after it', () => {
+  const set = (n) =>
+    `SAT ${n}\n` +
+    `1 ${25544 + n}U 98067A   24001.50000000  .00016717  00000-0  30270-3 0  9994\n` +
+    `2 ${25544 + n}  51.6416 247.4627 0006703 130.5360 325.0288 15.50377579432414\n`;
+  const whole = Array.from({ length: 8 }, (_, n) => set(n)).join('');
+  assert.equal(parseTleText(whole).length, 8);
+
+  const missingLine2 = whole.replace(/\n2 25545[^\n]*/, '');
+  assert.deepEqual(
+    parseTleText(missingLine2).map((entry) => entry.name),
+    ['SAT 0', 'SAT 2', 'SAT 3', 'SAT 4', 'SAT 5', 'SAT 6', 'SAT 7'],
+  );
+
+  const missingName = whole.replace('SAT 3\n', '');
+  assert.equal(parseTleText(missingName).length, 8);
+  assert.equal(parseTleText(missingName)[3].name, '25547');
+});
+
+test('a TLE line 1 is never paired with another satellite’s line 2', () => {
+  const entries = parseTleText(
+    `A\n1 25544U 98067A   24001.50000000  .00016717  00000-0  30270-3 0  9994\n` +
+      `2 48274  41.4697 175.8913 0005643 312.8370 141.6893 15.61287398150000\n`,
+  );
+  assert.deepEqual(entries, []);
+});
+
 test('the next pass defaults to the ISS and reports times, peak and direction', async () => {
   const catalog = composeCatalog({
     tools: coreTools,
