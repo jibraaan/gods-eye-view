@@ -151,6 +151,7 @@ export class ShareRestoration {
         // including legacy and malformed-v2 layer payloads.
         allowLocalState: !this._initialShareState,
       });
+      this._noticeRejectedShareLayers();
       if (this._initialShareSelectionSuperseded) {
         this._layerStateCoordinator.cancelPendingShareTracking(
           'superseded-before-layer-coordinator-start',
@@ -221,16 +222,20 @@ export class ShareRestoration {
         : result.classification === 'source-unavailable'
           ? `Shared ${subject} could not be restored — feed unavailable`
           : `Shared ${subject} is unavailable`;
+    this._showStatusAfterStartup(message, () =>
+      canPresentDeferredStatusNotice(
+        noticeGeneration,
+        this._shareTrackingNoticeGeneration,
+        this._disposed,
+      ),
+    );
+  }
+  /** Show `message` once the initial restore settles and the startup cover
+   * clears, unless `canPresent()` says a newer notice has replaced it. */
+  _showStatusAfterStartup(message, canPresent) {
     const showAfterStartupCover = () => {
       this._lifetime.frame(() => {
-        if (
-          !canPresentDeferredStatusNotice(
-            noticeGeneration,
-            this._shareTrackingNoticeGeneration,
-            this._disposed,
-          )
-        )
-          return;
+        if (!canPresent()) return;
         const startupCover = document.getElementById('loading-screen');
         if (
           !startupCover ||
@@ -244,14 +249,7 @@ export class ShareRestoration {
         const showOnce = () => {
           removeStartupListener();
           if (fallbackTimer) this._lifetime.cancelTimeout(fallbackTimer);
-          if (
-            canPresentDeferredStatusNotice(
-              noticeGeneration,
-              this._shareTrackingNoticeGeneration,
-              this._disposed,
-            )
-          )
-            this.showStatus(message);
+          if (canPresent()) this.showStatus(message);
         };
         removeStartupListener = this._lifetime.listen(
           startupCover,
@@ -267,6 +265,26 @@ export class ShareRestoration {
       return;
     }
     showAfterStartupCover();
+  }
+  /** A shared link whose layer set was rejected opens with default layers;
+   * say so rather than leave "Restoring shared view..." standing. */
+  _noticeRejectedShareLayers() {
+    if (
+      !this._initialShareState?.layerStateInvalid ||
+      this._rejectedShareLayersNoticed
+    )
+      return;
+    this._rejectedShareLayersNoticed = true;
+    const noticeGeneration = this._shareTrackingNoticeGeneration;
+    this._showStatusAfterStartup(
+      'Shared layers could not be restored — showing default layers',
+      () =>
+        canPresentDeferredStatusNotice(
+          noticeGeneration,
+          this._shareTrackingNoticeGeneration,
+          this._disposed,
+        ),
+    );
   }
   _settleInitialShareRestore(result) {
     if (!this._resolveInitialShareRestore) return;

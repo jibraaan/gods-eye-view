@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Say so when a shared link's layer set cannot be restored. A v2 link with an
+  unknown or over-long `l=` token set opened with default layers while the
+  loader still read "Restoring shared view...". The existing
+  `layerStateInvalid` flag now raises a top-center notice through the same
+  deferred path as the shared-tracking notices.
+
 - Add Norway's road cameras from Statens vegvesen as a CCTV pack. The camera
   list is one keyless GeoJSON request to the agency's OGC API view of its
   DATEX 3.1 CCTV table, so no DATEX account is needed. Every working camera
