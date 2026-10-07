@@ -102,6 +102,68 @@ export function installTrackpadPinchZoom(
   };
 }
 
+/**
+ * The largest resolution scale at or below `requested` that keeps a canvas of
+ * `width` × `height` CSS pixels within `limit` drawing-buffer pixels per side.
+ */
+export function cappedResolutionScale({
+  width,
+  height,
+  pixelRatio = 1,
+  requested = 1,
+  limit,
+}) {
+  const side = Math.max(width, height) * pixelRatio;
+  if (!(limit > 0) || !(side > 0)) return requested;
+  return Math.min(requested, limit / side);
+}
+
+/**
+ * Keep the drawing buffer within the GPU's texture and renderbuffer limits.
+ * Cesium sizes its globe-depth texture to the drawing buffer, so a canvas
+ * wider than `maximumTextureSize` (2048 on some GPUs, i.e. any 1440p or 4K
+ * window) stops rendering. The cap is applied inside the widget's per-frame
+ * resize, before the canvas is sized, and the view renders slightly softer
+ * instead. Returns a disposer.
+ */
+export function installDrawingBufferCap(
+  viewer,
+  {
+    limits = Cesium.ContextLimits,
+    devicePixelRatio = () => window.devicePixelRatio,
+  } = {},
+) {
+  const widget = viewer?.cesiumWidget;
+  if (!widget?.canvas || typeof widget.resize !== 'function')
+    throw new TypeError('A Cesium widget is required');
+  const originalResize = widget.resize;
+  let requested = widget.resolutionScale;
+  let applied = requested;
+  widget.resize = function resizeWithinLimits() {
+    // A scale set elsewhere since the last cap is the new request.
+    if (widget.resolutionScale !== applied) requested = widget.resolutionScale;
+    const limit = Math.min(
+      limits.maximumTextureSize || Infinity,
+      limits.maximumRenderbufferSize || Infinity,
+    );
+    applied = cappedResolutionScale({
+      width: widget.canvas.clientWidth,
+      height: widget.canvas.clientHeight,
+      pixelRatio: widget.useBrowserRecommendedResolution
+        ? 1
+        : devicePixelRatio(),
+      requested,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    if (widget.resolutionScale !== applied) widget.resolutionScale = applied;
+    return originalResize.call(this);
+  };
+  return () => {
+    widget.resize = originalResize;
+    if (widget.resolutionScale === applied) widget.resolutionScale = requested;
+  };
+}
+
 /** Create the standard globe viewer in caller-owned, visible containers. */
 export function createApplicationViewer({ container, creditContainer }) {
   if (!container || !creditContainer)
@@ -129,6 +191,7 @@ export function createApplicationViewer({ container, creditContainer }) {
     // atmosphere fails to LINK on Apple's Metal backend and kills the
     // render loop. See app/atmosphereCompat.js.
     applyModelAtmosphereWorkaround(viewer.scene);
+    installDrawingBufferCap(viewer);
     viewer.scene.globe.show = false;
     viewer.scene.skyAtmosphere.show = true;
     viewer.scene.skyAtmosphere.atmosphereLightIntensity = 18;

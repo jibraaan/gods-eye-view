@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Keep rendering on GPUs with a 2048 px texture limit. Cesium sizes its
+  globe-depth texture to the drawing buffer, so a 1440p or 4K window stopped
+  with "Width must be less than or equal to the maximum texture size". The
+  resolution scale is now capped to the GPU's texture and renderbuffer limits
+  before each resize; the view renders slightly softer there and is unchanged
+  everywhere else.
+
 - Add Norway's road cameras from Statens vegvesen as a CCTV pack. The camera
   list is one keyless GeoJSON request to the agency's OGC API view of its
   DATEX 3.1 CCTV table, so no DATEX account is needed. Every working camera
